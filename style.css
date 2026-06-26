@@ -177,7 +177,8 @@ a { color: inherit; text-decoration: none; }
   letter-spacing: 0.06em;
   margin: 0;
   line-height: 1.1;
-  animation: blurClear 1s var(--ease-out-expo) forwards;
+  animation: splashBlurIn 1s var(--ease-out-expo) forwards;
+  transition: filter 0.15s ease;
 }
 
 .splash-welcome {
@@ -187,18 +188,27 @@ a { color: inherit; text-decoration: none; }
   color: var(--color-accent);
   margin: 0.25em 0 0;
   line-height: 1;
-  opacity: 0;
   animation:
-    blurClear 1s var(--ease-out-expo) 0.35s forwards,
-    fadeUp 0.8s var(--ease-out-expo) 0.35s forwards;
+    splashBlurIn 1s var(--ease-out-expo) 0.35s forwards,
+    splashFadeUp 0.8s var(--ease-out-expo) 0.35s forwards;
+  transition: filter 0.15s ease;
 }
 
-@keyframes blurClear {
+/* Post-animation static state — filter: none to drop GPU compositing */
+.splash-brand.done,
+.splash-welcome.done {
+  animation: none;
+  filter: none;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@keyframes splashBlurIn {
   0%   { filter: blur(24px); }
   100% { filter: blur(0px); }
 }
 
-@keyframes fadeUp {
+@keyframes splashFadeUp {
   0%   { opacity: 0; transform: translateY(12px); }
   100% { opacity: 1; transform: translateY(0); }
 }

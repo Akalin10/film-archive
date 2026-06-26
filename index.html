@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#FBF8F4">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="icon" type="image/png" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
+<title>暗房 · Film Archive</title>
+<script>
+  // Prevent FOUC: apply saved theme before CSS paints
+  (function(){var t=localStorage.getItem('film_archive_theme');if(t==='dark')document.documentElement.dataset.theme='dark';})();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Work+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Splash Screen -->
+<div class="splash" id="splash">
+  <div class="splash-content">
+    <h1 class="splash-brand" id="splashBrand">MingHo</h1>
+    <p class="splash-welcome" id="splashWelcome">Welcome</p>
+  </div>
+</div>
+
+<!-- Grain overlay -->
+<div class="grain-overlay" aria-hidden="true"></div>
+
+<!-- ===== NAVIGATION ===== -->
+<header class="nav-header" id="navHeader">
+  <div class="nav-inner">
+    <button class="nav-brand" id="navBrand" aria-label="回到首页">
+      <span class="brand-icon">◈</span>
+      <span class="brand-text">暗房</span>
+    </button>
+
+    <nav class="nav-links" id="navLinks">
+      <button class="nav-pill active" data-view="gallery" data-filter="all">全部</button>
+      <button class="nav-pill" data-view="gallery" data-filter="featured">精选</button>
+      <button class="nav-pill" data-view="gallery" data-filter="recent">最近</button>
+      <button class="nav-pill" data-view="albums">相册</button>
+    </nav>
+
+    <div class="nav-actions">
+      <button class="nav-btn" id="btnSearch" aria-label="搜索" title="搜索">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+      </button>
+
+      <button class="nav-btn" id="btnTheme" aria-label="切换深色模式" title="切换深色模式">
+        <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+        </svg>
+        <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="display:none">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+      </button>
+
+      <div class="sort-dropdown" id="sortDropdown">
+        <button class="nav-btn sort-btn" id="btnSort" aria-label="排序" title="排序方式">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M3 7h18M6 12h12M9 17h6"/>
+          </svg>
+          <span class="sort-label" id="sortLabel">拍摄时间</span>
+        </button>
+        <div class="dropdown-menu" id="sortMenu">
+          <button data-sort="dateTaken" data-order="desc">拍摄时间 ↓</button>
+          <button data-sort="dateTaken" data-order="asc">拍摄时间 ↑</button>
+          <button data-sort="dateUploaded" data-order="desc">上传时间 ↓</button>
+          <button data-sort="dateUploaded" data-order="asc">上传时间 ↑</button>
+          <button data-sort="title" data-order="asc">标题 A-Z</button>
+        </div>
+      </div>
+
+      <button class="nav-btn nav-btn-upload" id="btnUpload" aria-label="上传照片" title="上传照片">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        <span class="upload-label">上传</span>
+      </button>
+
+      <button class="nav-btn hamburger" id="btnHamburger" aria-label="菜单">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Active filter indicator -->
+  <div class="active-filters" id="activeFilters"></div>
+
+  <!-- Mobile menu -->
+  <div class="mobile-menu" id="mobileMenu">
+    <button data-view="gallery" data-filter="all">全部照片</button>
+    <button data-view="gallery" data-filter="featured">精选照片</button>
+    <button data-view="gallery" data-filter="recent">最近上传</button>
+    <button data-view="albums">相册管理</button>
+    <hr>
+    <button id="mobSearch">搜索照片</button>
+    <button id="mobUpload">上传照片</button>
+    <hr>
+    <div class="mobile-sort">
+      <span>排序</span>
+      <select id="mobSort">
+        <option value="dateTaken-desc">拍摄时间 ↓</option>
+        <option value="dateTaken-asc">拍摄时间 ↑</option>
+        <option value="dateUploaded-desc">上传时间 ↓</option>
+        <option value="dateUploaded-asc">上传时间 ↑</option>
+        <option value="title-asc">标题 A-Z</option>
+      </select>
+    </div>
+  </div>
+</header>
+
+<!-- ===== MAIN CONTENT ===== -->
+<main class="main-content" id="mainContent">
+
+  <!-- Gallery View -->
+  <section class="view gallery-view active" id="galleryView">
+    <!-- Filter chips -->
+    <div class="filter-chips" id="filterChips">
+      <button class="chip active" data-tag="">全部</button>
+    </div>
+    <!-- Photo count -->
+    <div class="photo-count" id="photoCount"></div>
+    <!-- Masonry grid -->
+    <div class="masonry-grid" id="masonryGrid"></div>
+    <!-- Empty state -->
+    <div class="empty-state" id="emptyState">
+      <div class="empty-icon">◈</div>
+      <h2>暗房空置</h2>
+      <p>还没有照片。上传第一张照片，开始构建你的胶片档案。</p>
+      <button class="btn-primary" id="emptyUploadBtn">上传照片</button>
+    </div>
+    <!-- Load indicator -->
+    <div class="load-sentinel" id="loadSentinel"></div>
+  </section>
+
+  <!-- Albums View -->
+  <section class="view albums-view" id="albumsView">
+    <div class="section-header">
+      <h2>相册</h2>
+      <button class="btn-outline" id="btnCreateAlbum">+ 新建相册</button>
+    </div>
+    <div class="albums-grid" id="albumsGrid"></div>
+    <div class="empty-state" id="albumsEmpty">
+      <p>还没有相册。创建一个相册来整理你的照片。</p>
+    </div>
+  </section>
+
+  <!-- Album Detail View -->
+  <section class="view album-detail-view" id="albumDetailView">
+    <button class="back-btn" id="btnAlbumBack">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m15 18-6-6 6-6"/></svg>
+      返回相册列表
+    </button>
+    <div class="album-detail-header" id="albumDetailHeader"></div>
+    <div class="masonry-grid" id="albumMasonryGrid"></div>
+  </section>
+
+  <!-- Upload View -->
+  <section class="view upload-view" id="uploadView">
+    <button class="back-btn" id="btnUploadBack">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m15 18-6-6 6-6"/></svg>
+      返回画廊
+    </button>
+    <div class="upload-container">
+      <h2>上传照片</h2>
+      <!-- Drop zone -->
+      <div class="drop-zone" id="dropZone">
+        <div class="drop-zone-inner">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+          </svg>
+          <p>拖拽照片到此处，或点击选择文件</p>
+          <span class="drop-hint">支持 JPG / PNG / WebP / AVIF，可多选</span>
+        </div>
+        <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp,image/avif" multiple hidden>
+      </div>
+      <!-- Preview grid -->
+      <div class="upload-previews" id="uploadPreviews"></div>
+      <!-- Upload actions -->
+      <div class="upload-actions" id="uploadActions" style="display:none">
+        <button class="btn-outline" id="btnClearUploads">清空</button>
+        <button class="btn-primary" id="btnSaveUploads">保存全部</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Search View -->
+  <section class="view search-view" id="searchView">
+    <div class="search-header">
+      <button class="back-btn" id="btnSearchBack">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m15 18-6-6 6-6"/></svg>
+        返回
+      </button>
+      <div class="search-input-wrap">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <input type="text" id="searchInput" placeholder="按标题、标签、地点搜索..." autocomplete="off">
+      </div>
+    </div>
+    <div class="search-filters">
+      <select id="searchType">
+        <option value="all">全部字段</option>
+        <option value="title">标题</option>
+        <option value="tags">标签</option>
+        <option value="location">地点</option>
+      </select>
+      <input type="date" id="searchDateFrom" placeholder="开始日期">
+      <span class="date-sep">至</span>
+      <input type="date" id="searchDateTo" placeholder="结束日期">
+    </div>
+    <div class="search-results masonry-grid" id="searchResults"></div>
+    <div class="empty-state" id="searchEmpty">
+      <p>未找到匹配的照片</p>
+    </div>
+  </section>
+
+</main>
+
+<!-- ===== LIGHTBOX ===== -->
+<div class="lightbox-overlay" id="lightboxOverlay">
+  <div class="lightbox-backdrop"></div>
+  <button class="lightbox-close" id="lightboxClose" aria-label="关闭">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+  </button>
+
+  <button class="lightbox-nav lightbox-prev" id="lightboxPrev" aria-label="上一张">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m15 18-6-6 6-6"/></svg>
+  </button>
+
+  <div class="lightbox-content" id="lightboxContent">
+    <div class="lightbox-image-wrap">
+      <img id="lightboxImage" src="" alt="">
+      <div class="lightbox-placeholder" id="lightboxPlaceholder">加载中...</div>
+    </div>
+    <div class="lightbox-info" id="lightboxInfo">
+      <h3 class="lightbox-title" id="lightboxTitle"></h3>
+      <div class="lightbox-meta">
+        <span class="lightbox-date" id="lightboxDate"></span>
+        <span class="lightbox-location" id="lightboxLocation"></span>
+      </div>
+      <p class="lightbox-desc" id="lightboxDesc"></p>
+      <div class="lightbox-tags" id="lightboxTags"></div>
+      <div class="lightbox-actions" id="lightboxActions">
+        <button class="btn-small" id="lightboxEdit">编辑</button>
+        <button class="btn-small btn-danger" id="lightboxDelete">删除</button>
+        <button class="btn-small" id="lightboxToggleFeatured">☆ 精选</button>
+        <button class="btn-small" id="lightboxTogglePublic">🔒 私密</button>
+      </div>
+    </div>
+  </div>
+
+  <button class="lightbox-nav lightbox-next" id="lightboxNext" aria-label="下一张">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m9 18 6-6-6-6"/></svg>
+  </button>
+
+  <div class="lightbox-counter" id="lightboxCounter"></div>
+</div>
+
+<!-- ===== MODALS ===== -->
+
+<!-- Edit Photo Modal -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>编辑照片信息</h3>
+      <button class="modal-close" id="editModalClose">✕</button>
+    </div>
+    <div class="modal-body" id="editModalBody"></div>
+  </div>
+</div>
+
+<!-- Create/Edit Album Modal -->
+<div class="modal-overlay" id="albumModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="albumModalTitle">新建相册</h3>
+      <button class="modal-close" id="albumModalClose">✕</button>
+    </div>
+    <div class="modal-body" id="albumModalBody"></div>
+  </div>
+</div>
+
+<!-- Password Modal -->
+<div class="modal-overlay" id="passwordModal">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h3>需要密码</h3>
+      <button class="modal-close" id="passwordModalClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <p>此相册为私密相册，请输入密码查看。</p>
+      <input type="password" id="albumPasswordInput" placeholder="输入相册密码" class="input-full">
+      <div class="modal-actions">
+        <button class="btn-outline" id="btnPasswordCancel">取消</button>
+        <button class="btn-primary" id="btnPasswordSubmit">确认</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Login Modal -->
+<div class="modal-overlay" id="loginModal">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h3>管理员登录</h3>
+      <button class="modal-close" id="loginModalClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <p>上传和管理照片需要先登录。</p>
+      <input type="password" id="adminPasswordInput" placeholder="输入管理密码" class="input-full">
+      <div class="modal-actions">
+        <button class="btn-outline" id="btnLoginCancel">取消</button>
+        <button class="btn-primary" id="btnLoginSubmit">登录</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- Hidden canvas for thumbnail generation -->
+<canvas id="thumbCanvas" hidden></canvas>
+
+<script src="app.js"></script>
+</body>
+</html>

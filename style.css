@@ -90,9 +90,8 @@
   --color-danger-soft: #3D2020;
 }
 
-/* Dark theme — dim background image */
+/* Dark theme — subtle grain visibility */
 [data-theme="dark"] .grain-overlay { opacity: 0.05; }
-[data-theme="dark"] .bg-dimmer { opacity: 0.2; }
 
 /* ----- Reset ----- */
 *, *::before, *::after {
@@ -114,34 +113,39 @@ body {
   font-size: var(--text-base);
   color: var(--color-text);
   background-color: var(--color-bg);
-  background-image: url('background_1080p_16x9.png');
-  background-size: cover;
-  background-position: center;
-  background-attachment: fixed;
-  background-repeat: no-repeat;
   line-height: 1.6;
   min-height: 100vh;
   min-height: 100dvh;
   overflow-x: hidden;
 }
 
-/* Dark background image — crossfades in via opacity */
-body::after {
-  content: '';
+/* ============================================================
+   BACKGROUND LAYERS — fixed fullscreen, lowest z-index
+   ============================================================ */
+.bg-layer {
   position: fixed;
   inset: 0;
-  z-index: -1;
-  background-image: url('dark.png');
   background-size: cover;
   background-position: center;
-  background-attachment: fixed;
   background-repeat: no-repeat;
-  opacity: 0;
-  transition: opacity 0.8s var(--ease-out-expo);
   pointer-events: none;
 }
 
-[data-theme="dark"] body::after {
+/* Light background — always present, base layer */
+.bg-layer-light {
+  z-index: -2;
+  background-image: url('background_1080p_16x9.png');
+}
+
+/* Dark background — crossfades in via opacity */
+.bg-layer-dark {
+  z-index: -1;
+  background-image: url('dark.png');
+  opacity: 0;
+  transition: opacity 0.8s var(--ease-out-expo);
+}
+
+[data-theme="dark"] .bg-layer-dark {
   opacity: 1;
 }
 
@@ -234,17 +238,6 @@ a { color: inherit; text-decoration: none; }
   0%   { filter: blur(24px); opacity: 0; }
   60%  { opacity: 1; }
   100% { filter: blur(0px); opacity: 1; }
-}
-
-/* ----- Background Dimmer (dark mode only) ----- */
-.bg-dimmer {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  background: #000;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.5s var(--ease-out-expo);
 }
 
 /* ----- Grain Overlay ----- */

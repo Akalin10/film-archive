@@ -7,7 +7,10 @@
 const DB_NAME = 'FilmArchive';
 const DB_VERSION = 1;
 
+let _dbCache = null;
+
 function openDB() {
+  if (_dbCache) return Promise.resolve(_dbCache);
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = (e) => {
@@ -28,8 +31,19 @@ function openDB() {
         db.createObjectStore('settings', { keyPath: 'key' });
       }
     };
-    req.onsuccess = (e) => resolve(e.target.result);
-    req.onerror = (e) => reject(e.target.error);
+    req.onsuccess = (e) => {
+      _dbCache = e.target.result;
+      _dbCache.addEventListener('close', () => { _dbCache = null; });
+      resolve(_dbCache);
+    };
+    req.onerror = (e) => {
+      _dbCache = null;
+      reject(e.target.error);
+    };
+    req.onblocked = () => {
+      console.warn('[DB] open blocked — closing stale connections');
+      if (_dbCache) { _dbCache.close(); _dbCache = null; }
+    };
   });
 }
 
@@ -37,11 +51,15 @@ function dbTransaction(storeName, mode = 'readonly') {
   return openDB().then(db => {
     const tx = db.transaction(storeName, mode);
     const store = tx.objectStore(storeName);
-    return { store, tx, db, done: new Promise((resolve, reject) => {
-      tx.oncomplete = () => { db.close(); resolve(); };
-      tx.onerror = (e) => { db.close(); reject(e.target.error); };
-      tx.onabort = () => { db.close(); reject(new Error('Transaction aborted')); };
-    })};
+    const done = new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = (e) => {
+        e.preventDefault();
+        reject(e.target.error || new Error('Transaction error'));
+      };
+      tx.onabort = () => reject(new Error('Transaction aborted'));
+    });
+    return { store, tx, db, done };
   });
 }
 
@@ -49,8 +67,8 @@ function dbGetAll(storeName) {
   return dbTransaction(storeName).then(({ store, done }) =>
     new Promise((resolve, reject) => {
       const req = store.getAll();
-      req.onsuccess = () => done.then(() => resolve(req.result));
-      req.onerror = () => reject(req.error);
+      req.onsuccess = () => done.then(() => resolve(req.result), reject);
+      req.onerror = () => { try { done.catch(() => {}); } catch {} reject(req.error); };
     })
   );
 }
@@ -59,8 +77,8 @@ function dbGet(storeName, id) {
   return dbTransaction(storeName).then(({ store, done }) =>
     new Promise((resolve, reject) => {
       const req = store.get(id);
-      req.onsuccess = () => done.then(() => resolve(req.result));
-      req.onerror = () => reject(req.error);
+      req.onsuccess = () => done.then(() => resolve(req.result), reject);
+      req.onerror = () => { try { done.catch(() => {}); } catch {} reject(req.error); };
     })
   );
 }
@@ -69,8 +87,8 @@ function dbPut(storeName, item) {
   return dbTransaction(storeName, 'readwrite').then(({ store, done }) =>
     new Promise((resolve, reject) => {
       const req = store.put(item);
-      req.onsuccess = () => done.then(() => resolve(req.result));
-      req.onerror = () => reject(req.error);
+      req.onsuccess = () => done.then(() => resolve(req.result), reject);
+      req.onerror = () => { try { done.catch(() => {}); } catch {} reject(req.error); };
     })
   );
 }
@@ -79,8 +97,18 @@ function dbDelete(storeName, id) {
   return dbTransaction(storeName, 'readwrite').then(({ store, done }) =>
     new Promise((resolve, reject) => {
       const req = store.delete(id);
-      req.onsuccess = () => done.then(() => resolve());
-      req.onerror = () => reject(req.error);
+      req.onsuccess = () => done.then(() => resolve(), reject);
+      req.onerror = () => { try { done.catch(() => {}); } catch {} reject(req.error); };
+    })
+  );
+}
+
+function dbCount(storeName) {
+  return dbTransaction(storeName).then(({ store, done }) =>
+    new Promise((resolve, reject) => {
+      const req = store.count();
+      req.onsuccess = () => done.then(() => resolve(req.result), reject);
+      req.onerror = () => { try { done.catch(() => {}); } catch {} reject(req.error); };
     })
   );
 }
@@ -260,8 +288,15 @@ function showLoginModal(onSuccess) {
 }
 
 // ─── Photo Data ───────────────────────────────────────────────
+// Close cached DB on unload
+window.addEventListener('beforeunload', () => {
+  if (_dbCache) { _dbCache.close(); _dbCache = null; }
+});
+
 async function loadPhotos() {
-  state.photos = await dbGetAll('photos');
+  const photos = await dbGetAll('photos');
+  state.photos = photos;
+  console.log('[Storage] Loaded', photos.length, 'photos into state');
 }
 
 async function savePhoto(photoData) {
@@ -1337,6 +1372,11 @@ async function saveUploads() {
   renderUploadPreviews();
 
   await loadPhotos();
+
+  // Verify persistence
+  const persistedCount = await dbCount('photos');
+  console.log('[Storage] Persisted', persistedCount, 'photos in IndexedDB');
+
   btn.disabled = false;
   btn.textContent = '保存全部';
   showView('gallery');
@@ -1532,10 +1572,19 @@ function initSearch() {
 
 // ─── Demo Data ────────────────────────────────────────────────
 async function loadDemoDataIfEmpty() {
-  const photos = await dbGetAll('photos');
-  if (photos.length > 0) return;
+  // Request persistent storage — prevents browser eviction under disk pressure
+  if (navigator.storage && navigator.storage.persist) {
+    const persisted = await navigator.storage.persist();
+    console.log('[Storage] Persistent permission:', persisted ? 'granted' : 'denied');
+  }
 
-  // Generate sample photos using SVG placeholders
+  const count = await dbCount('photos');
+  console.log('[Storage] Existing photos in IndexedDB:', count);
+  if (count > 0) return;
+
+  console.log('[Storage] No existing photos — loading demo data');
+
+  // Generate sample photos using canvas placeholders
   const demos = [
     { title: '晨光中的山脊', desc: '清晨第一缕阳光照亮山脊线', dateTaken: '2026-03-15T06:30:00.000Z', location: '黄山', tags: ['风景', '山', '日出'], isFeatured: true, w: 600, h: 400, color: '8B9DAF' },
     { title: '城市剪影', desc: '落日余晖下的城市天际线', dateTaken: '2026-02-20T18:00:00.000Z', location: '上海', tags: ['城市', '日落', '建筑'], isFeatured: true, w: 400, h: 600, color: 'C8963E' },

@@ -88,10 +88,11 @@
   --color-accent-pale: #3D3020;
   --color-danger: #D4706A;
   --color-danger-soft: #3D2020;
-
-  /* Higher grain visibility in dark mode */
-  .grain-overlay { opacity: 0.05; }
 }
+
+/* Dark theme — dim background image */
+[data-theme="dark"] .grain-overlay { opacity: 0.05; }
+[data-theme="dark"] .bg-dimmer { opacity: 0.2; }
 
 /* ----- Reset ----- */
 *, *::before, *::after {
@@ -113,10 +114,35 @@ body {
   font-size: var(--text-base);
   color: var(--color-text);
   background-color: var(--color-bg);
+  background-image: url('background_1080p_16x9.png');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
   line-height: 1.6;
   min-height: 100vh;
   min-height: 100dvh;
   overflow-x: hidden;
+}
+
+/* Dark background image — crossfades in via opacity */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image: url('dark.png');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  opacity: 0;
+  transition: opacity 0.8s var(--ease-out-expo);
+  pointer-events: none;
+}
+
+[data-theme="dark"] body::after {
+  opacity: 1;
 }
 
 img {
@@ -174,10 +200,12 @@ a { color: inherit; text-decoration: none; }
   font-size: clamp(3rem, 5vw + 1rem, 7rem);
   font-weight: 400;
   color: var(--color-text);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   margin: 0;
   line-height: 1.1;
-  animation: splashBlurIn 1s var(--ease-out-expo) forwards;
+  filter: blur(24px);
+  opacity: 0;
+  animation: splashReveal 1s var(--ease-out-expo) forwards;
   transition: filter 0.15s ease;
 }
 
@@ -186,31 +214,37 @@ a { color: inherit; text-decoration: none; }
   font-size: clamp(1.5rem, 3vw + 0.5rem, 2.8rem);
   font-weight: 500;
   color: var(--color-accent);
-  margin: 0.25em 0 0;
+  margin: 0.15em 0 0;
   line-height: 1;
-  animation:
-    splashBlurIn 1s var(--ease-out-expo) 0.35s forwards,
-    splashFadeUp 0.8s var(--ease-out-expo) 0.35s forwards;
+  filter: blur(24px);
+  opacity: 0;
+  animation: splashReveal 1s var(--ease-out-expo) forwards;
   transition: filter 0.15s ease;
 }
 
-/* Post-animation static state — filter: none to drop GPU compositing */
+/* Post-animation static state */
 .splash-brand.done,
 .splash-welcome.done {
   animation: none;
   filter: none;
   opacity: 1;
-  transform: translateY(0);
 }
 
-@keyframes splashBlurIn {
-  0%   { filter: blur(24px); }
-  100% { filter: blur(0px); }
+@keyframes splashReveal {
+  0%   { filter: blur(24px); opacity: 0; }
+  60%  { opacity: 1; }
+  100% { filter: blur(0px); opacity: 1; }
 }
 
-@keyframes splashFadeUp {
-  0%   { opacity: 0; transform: translateY(12px); }
-  100% { opacity: 1; transform: translateY(0); }
+/* ----- Background Dimmer (dark mode only) ----- */
+.bg-dimmer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s var(--ease-out-expo);
 }
 
 /* ----- Grain Overlay ----- */
@@ -521,6 +555,8 @@ a { color: inherit; text-decoration: none; }
 
 /* ----- Main Content ----- */
 .main-content {
+  position: relative;
+  z-index: 1;
   max-width: var(--content-max);
   margin: 0 auto;
   padding: var(--space-4);

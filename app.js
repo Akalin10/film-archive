@@ -1798,18 +1798,17 @@ async function init() {
     $('#sortLabel').textContent = '拍摄时间 ↓';
     $('#mobSort').value = 'dateTaken-desc';
 
-    // Dismiss splash — event-driven, no hard cut
+    // Dismiss splash — wait for blur animation to finish (both end at 1s)
     const splash = $('#splash');
-    const brand = $('#splashBrand');
-    const welcome = $('#splashWelcome');
+    const brand = document.querySelector('.splash-brand');
+    const welcome = document.querySelector('.splash-welcome');
 
-    if (splash && welcome) {
-      // Wait for the *last* animation to finish (welcome ends at 1.35s)
+    if (splash && brand && welcome) {
       welcome.addEventListener('animationend', function onAnimEnd(e) {
-        if (e.target !== welcome) return; // ignore bubbled events
+        if (e.target !== welcome) return;
         welcome.removeEventListener('animationend', onAnimEnd);
 
-        // Snap to static final state — filter:none drops GPU compositing
+        // Snap to static state — filter:none drops GPU compositing
         brand.classList.add('done');
         welcome.classList.add('done');
 
@@ -1817,7 +1816,6 @@ async function init() {
         setTimeout(() => {
           splash.classList.add('fade-out');
 
-          // Hide only after opacity transition fully completes
           splash.addEventListener('transitionend', function onTransEnd(e2) {
             if (e2.propertyName !== 'opacity') return;
             splash.removeEventListener('transitionend', onTransEnd);

@@ -988,7 +988,7 @@ function renderLightbox() {
   });
 
   // Actions
-  $('#lightboxToggleFeatured').textContent = photo.isFeatured ? '★ 取消精选' : '☆ 设为精选';
+  $('#lightboxToggleFeatured').textContent = photo.isFeatured ? '★ 精选' : '☆ 精选';
   $('#lightboxTogglePublic').textContent = photo.isPublic ? '🌐 公开' : '🔒 私密';
 
   // Clear old listeners

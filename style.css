@@ -977,6 +977,100 @@ a { color: inherit; text-decoration: none; }
   margin-top: var(--space-6);
 }
 
+/* EXIF badge in upload preview cards */
+.exif-badge {
+  padding: 4px 8px;
+  margin-top: var(--space-1);
+  background: color-mix(in srgb, var(--color-accent-pale) 60%, transparent);
+  color: var(--color-accent);
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 500;
+  font-family: var(--font-mono);
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- Import section in upload view --- */
+.upload-import-section {
+  margin-top: var(--space-10);
+  padding-top: var(--space-8);
+}
+
+.import-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.import-divider::before,
+.import-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
+
+.import-divider span {
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+}
+
+.import-desc {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  text-align: center;
+  margin-bottom: var(--space-3);
+}
+
+.import-zone {
+  border: 2px dashed var(--color-border-strong);
+  border-radius: 12px;
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease-out-expo);
+  background: var(--color-surface);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+}
+
+.import-zone:hover,
+.import-zone.drag-over {
+  border-color: var(--color-accent);
+  background: var(--color-accent-pale);
+}
+
+.import-status {
+  margin-top: var(--space-3);
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.import-status.importing {
+  background: var(--color-accent-pale);
+  color: var(--color-accent);
+}
+
+.import-status.success {
+  background: color-mix(in srgb, #3D7A4F 20%, transparent);
+  color: #3D7A4F;
+}
+
+.import-status.error {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
 /* ----- Albums View ----- */
 .section-header {
   display: flex;

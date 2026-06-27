@@ -183,6 +183,58 @@ function toast(message, type = '') {
   }, 2800);
 }
 
+// ─── EXIF Extraction ──────────────────────────────────────────
+async function extractExifData(file) {
+  try {
+    if (typeof exifr === 'undefined') return null;
+    const exif = await exifr.parse(file, {
+      pick: ['DateTimeOriginal', 'Make', 'Model', 'FNumber', 'ExposureTime',
+             'ISO', 'FocalLength', 'GPSLatitude', 'GPSLongitude',
+             'GPSLatitudeRef', 'GPSLongitudeRef', 'LensModel', 'Flash',
+             'ExposureCompensation', 'ApertureValue', 'ShutterSpeedValue']
+    });
+    if (!exif) return null;
+
+    const result = {};
+
+    // Date taken — EXIF uses "YYYY:MM:DD HH:MM:SS", we keep only YYYY-MM-DD
+    // so that saveUploads produces valid "YYYY-MM-DDT00:00:00.000Z"
+    if (exif.DateTimeOriginal) {
+      result.dateTaken = exif.DateTimeOriginal.replace(/^(\d{4}):(\d{2}):(\d{2}).*/, '$1-$2-$3');
+    }
+
+    // GPS coordinates
+    if (exif.GPSLatitude != null && exif.GPSLongitude != null) {
+      result.latitude = exif.GPSLatitude;
+      result.longitude = exif.GPSLongitude;
+      const latRef = exif.GPSLatitudeRef || (exif.GPSLatitude >= 0 ? 'N' : 'S');
+      const lonRef = exif.GPSLongitudeRef || (exif.GPSLongitude >= 0 ? 'E' : 'W');
+      result.gpsString = Math.abs(exif.GPSLatitude).toFixed(4) + '°' + latRef + ', '
+                       + Math.abs(exif.GPSLongitude).toFixed(4) + '°' + lonRef;
+    }
+
+    // Camera info string: "Fujifilm X-T5 · 35mm · f/1.4 · 1/500s · ISO 400"
+    const parts = [];
+    if (exif.Make || exif.Model) {
+      parts.push([exif.Make, exif.Model].filter(Boolean).join(' '));
+    }
+    if (exif.LensModel) parts.push(exif.LensModel);
+    if (exif.FocalLength) parts.push(Math.round(exif.FocalLength) + 'mm');
+    if (exif.FNumber) parts.push('f/' + exif.FNumber);
+    if (exif.ExposureTime) {
+      const et = exif.ExposureTime;
+      parts.push(et < 1 ? '1/' + Math.round(1 / et) + 's' : et + 's');
+    }
+    if (exif.ISO) parts.push('ISO ' + exif.ISO);
+    result.cameraString = parts.join(' · ');
+
+    return result;
+  } catch (err) {
+    // Not all files have EXIF — that's fine
+    return null;
+  }
+}
+
 // ─── Thumbnail Generation ─────────────────────────────────────
 function createThumbnail(file, maxSize = 400) {
   return new Promise((resolve) => {
@@ -1206,16 +1258,16 @@ function handleFilesSelected(fileList) {
   handleFilesArray(Array.from(fileList));
 }
 
-function handleFilesArray(files) {
+async function handleFilesArray(files) {
   const imageFiles = files.filter(f => f.type.startsWith('image/'));
   if (imageFiles.length === 0) {
     toast('请选择图片文件', 'error');
     return;
   }
 
-  imageFiles.forEach(file => {
+  for (const file of imageFiles) {
     const previewUrl = URL.createObjectURL(file);
-    state.uploadFiles.push({
+    const item = {
       file,
       previewUrl,
       title: file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' '),
@@ -1226,8 +1278,21 @@ function handleFilesArray(files) {
       albumId: '',
       isPublic: true,
       isFeatured: false,
-    });
-  });
+      exifData: null,
+    };
+
+    // Extract EXIF metadata asynchronously
+    const exif = await extractExifData(file);
+    if (exif) {
+      item.exifData = exif;
+      // Auto-fill date from EXIF
+      if (exif.dateTaken) item.date = exif.dateTaken;
+      // Auto-fill location from GPS
+      if (exif.gpsString) item.location = exif.gpsString;
+    }
+
+    state.uploadFiles.push(item);
+  }
 
   renderUploadPreviews();
 }
@@ -1309,6 +1374,15 @@ function renderUploadPreviews() {
     albumSelect.addEventListener('change', () => { item.albumId = albumSelect.value; });
     info.appendChild(albumSelect);
 
+    // EXIF data badge
+    if (item.exifData && item.exifData.cameraString) {
+      const exifBadge = document.createElement('div');
+      exifBadge.className = 'exif-badge';
+      exifBadge.textContent = item.exifData.cameraString;
+      exifBadge.title = item.exifData.cameraString;
+      info.appendChild(exifBadge);
+    }
+
     card.appendChild(info);
     container.appendChild(card);
   });
@@ -1381,6 +1455,257 @@ async function saveUploads() {
   btn.textContent = '保存全部';
   showView('gallery');
   toast(`成功上传 ${saved} 张照片`, 'success');
+}
+
+// ─── Export / Import ──────────────────────────────────────────
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Failed to read blob'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function base64ToBlob(dataUrl) {
+  const parts = dataUrl.split(',');
+  const mime = parts[0].match(/:(.*?);/)[1];
+  const bytes = atob(parts[1]);
+  const buf = new ArrayBuffer(bytes.length);
+  const arr = new Uint8Array(buf);
+  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+  return new Blob([buf], { type: mime });
+}
+
+async function exportArchive() {
+  toast('正在准备备份...');
+  const btn = $('#btnExport');
+  btn.style.opacity = '0.5';
+  btn.style.pointerEvents = 'none';
+
+  try {
+    const photos = await dbGetAll('photos');
+    const albums = await dbGetAll('albums');
+
+    // Estimate archive size — base64 adds ~33%, plus JSON overhead
+    let totalBlobBytes = 0;
+    for (const photo of photos) {
+      if (photo.imageData instanceof Blob) totalBlobBytes += photo.imageData.size;
+      if (photo.thumbnailData instanceof Blob) totalBlobBytes += photo.thumbnailData.size;
+    }
+    const estimatedMB = (totalBlobBytes * 1.33 / 1024 / 1024).toFixed(1);
+    if (totalBlobBytes > 50 * 1024 * 1024) {
+      const proceed = confirm(
+        '备份文件预计约 ' + estimatedMB + ' MB (' + photos.length + ' 张照片)。\n\n' +
+        '大型备份可能占用较多内存，建议在桌面端浏览器操作。\n\n确认继续？'
+      );
+      if (!proceed) {
+        btn.style.opacity = '';
+        btn.style.pointerEvents = '';
+        return;
+      }
+    }
+
+    // Convert image blobs to base64 data URLs
+    let processed = 0;
+    const photoData = [];
+    for (const photo of photos) {
+      const entry = {
+        id: photo.id,
+        title: photo.title,
+        description: photo.description,
+        dateTaken: photo.dateTaken,
+        dateUploaded: photo.dateUploaded,
+        location: photo.location,
+        tags: photo.tags,
+        albumId: photo.albumId,
+        isFeatured: photo.isFeatured,
+        isPublic: photo.isPublic,
+        width: photo.width,
+        height: photo.height,
+      };
+
+      if (photo.imageData instanceof Blob) {
+        entry.imageData = await blobToBase64(photo.imageData);
+      }
+      if (photo.thumbnailData instanceof Blob) {
+        entry.thumbnailData = await blobToBase64(photo.thumbnailData);
+      }
+
+      photoData.push(entry);
+      processed++;
+      if (processed % 5 === 0 || processed === photos.length) {
+        btn.setAttribute('title', '导出中... ' + processed + '/' + photos.length);
+        await new Promise(r => setTimeout(r, 0));
+      }
+    }
+
+    const archive = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      app: '暗房 · Film Archive',
+      photoCount: photoData.length,
+      photos: photoData,
+      albums: albums.map(a => ({
+        id: a.id,
+        name: a.name,
+        description: a.description || '',
+        coverPhotoId: a.coverPhotoId,
+        isPrivate: a.isPrivate,
+        password: a.password || '',
+        dateCreated: a.dateCreated,
+      })),
+      adminPassword: await dbGetSetting('adminPassword', ''),
+    };
+
+    const json = JSON.stringify(archive);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    const dateStr = new Date().toISOString().slice(0, 10);
+    a.download = 'film-archive-backup-' + dateStr + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    const sizeMB = (blob.size / 1024 / 1024).toFixed(1);
+    toast('备份已下载 (' + sizeMB + ' MB, ' + photoData.length + ' 张照片)', 'success');
+  } catch (err) {
+    console.error('[Export] Failed:', err);
+    toast('备份失败: ' + err.message, 'error');
+  } finally {
+    btn.style.opacity = '';
+    btn.style.pointerEvents = '';
+    btn.setAttribute('title', '导出备份');
+  }
+}
+
+async function importArchive(file) {
+  const status = $('#importStatus');
+  status.style.display = 'block';
+  status.className = 'import-status importing';
+  status.textContent = '正在读取备份文件...';
+
+  try {
+    const text = await file.text();
+    const archive = JSON.parse(text);
+
+    // Validate archive format
+    if (!archive.version || !Array.isArray(archive.photos)) {
+      throw new Error('无效的备份文件格式');
+    }
+
+    const photoCount = archive.photos.length;
+    const albumCount = (archive.albums || []).length;
+    const confirmed = confirm(
+      '即将导入 ' + photoCount + ' 张照片和 ' + albumCount + ' 个相册。\n\n' +
+      '导出日期: ' + (archive.exportedAt ? new Date(archive.exportedAt).toLocaleString('zh-CN') : '未知') + '\n\n' +
+      '注意: 导入将覆盖/合并现有数据，同名 ID 的照片和相册会被替换。\n\n确认继续？'
+    );
+
+    if (!confirmed) {
+      status.style.display = 'none';
+      return;
+    }
+
+    // Restore photos
+    let imported = 0;
+    for (const photo of archive.photos) {
+      // Convert base64 back to Blobs
+      if (typeof photo.imageData === 'string' && photo.imageData.startsWith('data:')) {
+        photo.imageData = base64ToBlob(photo.imageData);
+      }
+      if (typeof photo.thumbnailData === 'string' && photo.thumbnailData.startsWith('data:')) {
+        photo.thumbnailData = base64ToBlob(photo.thumbnailData);
+      }
+
+      await dbPut('photos', photo);
+      imported++;
+
+      if (imported % 10 === 0) {
+        status.textContent = '正在导入照片... (' + imported + '/' + photoCount + ')';
+        await new Promise(r => setTimeout(r, 0));
+      }
+    }
+
+    // Restore albums
+    if (archive.albums) {
+      for (const album of archive.albums) {
+        await dbPut('albums', album);
+      }
+    }
+
+    // Restore admin password
+    if (archive.adminPassword) {
+      await dbSetSetting('adminPassword', archive.adminPassword);
+    }
+
+    // Reload everything
+    await loadPhotos();
+    await loadAlbums();
+    renderCurrentView();
+
+    status.className = 'import-status success';
+    status.textContent = '✓ 导入完成: ' + photoCount + ' 张照片, ' + albumCount + ' 个相册';
+    toast('备份导入成功', 'success');
+
+    setTimeout(() => { status.style.display = 'none'; }, 5000);
+  } catch (err) {
+    console.error('[Import] Failed:', err);
+    status.className = 'import-status error';
+    status.textContent = '导入失败: ' + err.message;
+    toast('导入失败: ' + err.message, 'error');
+  }
+}
+
+function initExportImport() {
+  // Desktop export button
+  $('#btnExport').addEventListener('click', () => exportArchive());
+
+  // Mobile export/import buttons
+  $('#mobExport').addEventListener('click', () => {
+    $('#mobileMenu').classList.remove('open');
+    exportArchive();
+  });
+  $('#mobImport').addEventListener('click', () => {
+    $('#mobileMenu').classList.remove('open');
+    showView('upload');
+    // Scroll to import section
+    setTimeout(() => {
+      $('.upload-import-section').scrollIntoView({ behavior: 'smooth' });
+    }, 300);
+  });
+
+  // Import file input
+  const importZone = $('#importZone');
+  const importFileInput = $('#importFileInput');
+
+  importZone.addEventListener('click', () => importFileInput.click());
+  importFileInput.addEventListener('change', () => {
+    if (importFileInput.files.length > 0) {
+      importArchive(importFileInput.files[0]);
+      importFileInput.value = '';
+    }
+  });
+
+  // Drag-and-drop for import
+  importZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    importZone.classList.add('drag-over');
+  });
+  importZone.addEventListener('dragleave', () => {
+    importZone.classList.remove('drag-over');
+  });
+  importZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    importZone.classList.remove('drag-over');
+    if (e.dataTransfer.files.length > 0) {
+      importArchive(e.dataTransfer.files[0]);
+    }
+  });
 }
 
 // ─── Event Handlers ───────────────────────────────────────────
@@ -1787,6 +2112,7 @@ async function init() {
     initDropZone();
     initUploadActions();
     initSearch();
+    initExportImport();
     initGlobalKeyboard();
 
     // Register service worker for offline support
